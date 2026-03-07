@@ -30,7 +30,7 @@
 ### 快速开始
 
 ```python
-from skills.scripts.generate_pos import PosBuilder
+from scripts.generate_pos import PosBuilder
 
 B = PosBuilder()
 
@@ -51,28 +51,40 @@ B.save(data, "output.pos")
 ### 命令行使用
 
 ```bash
+# 进入 skill 目录
+cd skills/generate-pos-flowchart
+
 # 生成示例流程图
-python skills/scripts/generate_pos.py
+python scripts/generate_pos.py
 
 # 生成泳道图示例
-python skills/scripts/generate_pos.py --demo-swimlane
+python scripts/generate_pos.py --demo-swimlane
 
 # 生成架构图示例
-python skills/scripts/generate_pos.py --demo-arch
+python scripts/generate_pos.py --demo-arch
 
 # 验证 .pos 文件
-python skills/scripts/generate_pos.py --verify output.pos
+python scripts/generate_pos.py --verify output.pos
 ```
 
-### 作为 Cursor Skill 使用
+### 作为 Cursor Skill 安装
 
-将本仓库克隆到 Cursor 的 skills 目录：
+**方式一：克隆整个仓库，然后复制 skill 目录**
 
 ```bash
-git clone https://github.com/lilyjem/generate-pos-flowchart.git ~/.cursor/skills/generate-pos-flowchart
+git clone https://github.com/lilyjem/generate-pos-flowchart.git
+cp -r generate-pos-flowchart/skills/generate-pos-flowchart ~/.cursor/skills/
 ```
 
-之后在 Cursor 中即可通过 `@generate-pos-flowchart` 引用此 Skill，AI 会自动调用 `PosBuilder` 生成流程图。
+**方式二：直接克隆到 skills 目录（推荐）**
+
+```bash
+cd ~/.cursor/skills
+git clone https://github.com/lilyjem/generate-pos-flowchart.git
+# skill 文件位于 generate-pos-flowchart/skills/generate-pos-flowchart/
+```
+
+安装后在 Cursor 中通过 `@generate-pos-flowchart` 引用此 Skill，AI 会自动调用 `PosBuilder` 生成流程图。
 
 ### 导入 ProcessOn
 
@@ -84,21 +96,22 @@ git clone https://github.com/lilyjem/generate-pos-flowchart.git ~/.cursor/skills
 ### 项目结构
 
 ```
-generate-pos-flowchart/
+generate-pos-flowchart/                 # 仓库根目录
 ├── .gitignore
 ├── LICENSE
 ├── README.md
-└── skills/                         # Cursor Skill 文件
-    ├── SKILL.md                    # Skill 配置文件（AI 读取此文件）
-    ├── pos-format-spec.md          # ProcessOn .pos 文件格式规范
-    └── scripts/
-        └── generate_pos.py         # PosBuilder 核心脚本
+└── skills/
+    └── generate-pos-flowchart/         # Cursor Skill 目录（可直接复制到 ~/.cursor/skills/）
+        ├── SKILL.md                    # Skill 配置文件（AI 读取此文件）
+        ├── pos-format-spec.md          # ProcessOn .pos 文件格式规范
+        └── scripts/
+            └── generate_pos.py         # PosBuilder 核心脚本
 ```
 
 ### 文档
 
-- [skills/SKILL.md](skills/SKILL.md) — Skill 使用说明，包含所有节点类型、连线规则、锚点选择规则
-- [skills/pos-format-spec.md](skills/pos-format-spec.md) — .pos 文件格式完整规范（基于逆向分析）
+- [SKILL.md](skills/generate-pos-flowchart/SKILL.md) — Skill 使用说明，包含所有节点类型、连线规则、锚点选择规则
+- [pos-format-spec.md](skills/generate-pos-flowchart/pos-format-spec.md) — .pos 文件格式完整规范（基于逆向分析）
 
 ---
 
@@ -128,7 +141,7 @@ Generated `.pos` files can be directly imported into ProcessOn.
 ### Quick Start
 
 ```python
-from skills.scripts.generate_pos import PosBuilder
+from scripts.generate_pos import PosBuilder
 
 B = PosBuilder()
 
@@ -146,28 +159,40 @@ B.save(data, "output.pos")
 ### CLI Usage
 
 ```bash
+# Enter the skill directory
+cd skills/generate-pos-flowchart
+
 # Generate demo flowchart
-python skills/scripts/generate_pos.py
+python scripts/generate_pos.py
 
 # Generate swimlane demo
-python skills/scripts/generate_pos.py --demo-swimlane
+python scripts/generate_pos.py --demo-swimlane
 
 # Generate architecture demo
-python skills/scripts/generate_pos.py --demo-arch
+python scripts/generate_pos.py --demo-arch
 
 # Verify a .pos file
-python skills/scripts/generate_pos.py --verify output.pos
+python scripts/generate_pos.py --verify output.pos
 ```
 
-### Use as Cursor Skill
+### Install as Cursor Skill
 
-Clone this repo into your Cursor skills directory:
+**Option 1: Clone and copy the skill directory**
 
 ```bash
-git clone https://github.com/lilyjem/generate-pos-flowchart.git ~/.cursor/skills/generate-pos-flowchart
+git clone https://github.com/lilyjem/generate-pos-flowchart.git
+cp -r generate-pos-flowchart/skills/generate-pos-flowchart ~/.cursor/skills/
 ```
 
-Then reference it in Cursor with `@generate-pos-flowchart` — the AI will automatically use `PosBuilder` to generate flowcharts.
+**Option 2: Clone into skills directory (recommended)**
+
+```bash
+cd ~/.cursor/skills
+git clone https://github.com/lilyjem/generate-pos-flowchart.git
+# Skill files are at generate-pos-flowchart/skills/generate-pos-flowchart/
+```
+
+After installation, reference it in Cursor with `@generate-pos-flowchart` — the AI will automatically use `PosBuilder` to generate flowcharts.
 
 ### License
 
