@@ -30,7 +30,7 @@
 ### 快速开始
 
 ```python
-from scripts.generate_pos import PosBuilder
+from skills.scripts.generate_pos import PosBuilder
 
 B = PosBuilder()
 
@@ -52,16 +52,16 @@ B.save(data, "output.pos")
 
 ```bash
 # 生成示例流程图
-python scripts/generate_pos.py
+python skills/scripts/generate_pos.py
 
 # 生成泳道图示例
-python scripts/generate_pos.py --demo-swimlane
+python skills/scripts/generate_pos.py --demo-swimlane
 
 # 生成架构图示例
-python scripts/generate_pos.py --demo-arch
+python skills/scripts/generate_pos.py --demo-arch
 
 # 验证 .pos 文件
-python scripts/generate_pos.py --verify output.pos
+python skills/scripts/generate_pos.py --verify output.pos
 ```
 
 ### 作为 Cursor Skill 使用
@@ -85,19 +85,20 @@ git clone https://github.com/lilyjem/generate-pos-flowchart.git ~/.cursor/skills
 
 ```
 generate-pos-flowchart/
-├── SKILL.md                    # Cursor Skill 配置文件（AI 读取此文件）
-├── pos-format-spec.md          # ProcessOn .pos 文件格式规范
-├── scripts/
-│   └── generate_pos.py         # PosBuilder 核心脚本
-├── README.md
+├── .gitignore
 ├── LICENSE
-└── .gitignore
+├── README.md
+└── skills/                         # Cursor Skill 文件
+    ├── SKILL.md                    # Skill 配置文件（AI 读取此文件）
+    ├── pos-format-spec.md          # ProcessOn .pos 文件格式规范
+    └── scripts/
+        └── generate_pos.py         # PosBuilder 核心脚本
 ```
 
 ### 文档
 
-- [SKILL.md](SKILL.md) — Skill 使用说明，包含所有节点类型、连线规则、锚点选择规则
-- [pos-format-spec.md](pos-format-spec.md) — .pos 文件格式完整规范（基于逆向分析）
+- [skills/SKILL.md](skills/SKILL.md) — Skill 使用说明，包含所有节点类型、连线规则、锚点选择规则
+- [skills/pos-format-spec.md](skills/pos-format-spec.md) — .pos 文件格式完整规范（基于逆向分析）
 
 ---
 
@@ -127,7 +128,7 @@ Generated `.pos` files can be directly imported into ProcessOn.
 ### Quick Start
 
 ```python
-from scripts.generate_pos import PosBuilder
+from skills.scripts.generate_pos import PosBuilder
 
 B = PosBuilder()
 
@@ -146,16 +147,16 @@ B.save(data, "output.pos")
 
 ```bash
 # Generate demo flowchart
-python scripts/generate_pos.py
+python skills/scripts/generate_pos.py
 
 # Generate swimlane demo
-python scripts/generate_pos.py --demo-swimlane
+python skills/scripts/generate_pos.py --demo-swimlane
 
 # Generate architecture demo
-python scripts/generate_pos.py --demo-arch
+python skills/scripts/generate_pos.py --demo-arch
 
 # Verify a .pos file
-python scripts/generate_pos.py --verify output.pos
+python skills/scripts/generate_pos.py --verify output.pos
 ```
 
 ### Use as Cursor Skill
