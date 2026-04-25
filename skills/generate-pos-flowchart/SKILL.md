@@ -1,13 +1,140 @@
 ---
 name: generate-pos-flowchart
-description: 生成ProcessOn .pos格式的流程图和架构图文件，支持泳道图（verticalPool/verticalLane）、普通流程图、系统架构图、各类节点（process/decision/terminator/start/predefinedProcess/directData/storedData/roundRectangle/text）、颜色填充和连线（linker）。当用户需要生成ProcessOn流程图、泳道图、架构图、.pos文件、导入ProcessOn时使用此skill。
+description: |
+  在本地生成 ProcessOn .pos 格式的流程图、泳道图和系统架构图文件，输出可直接导入 ProcessOn 编辑器的 JSON 数据。完全离线运行，不依赖任何在线 API 或 API Key。基于本地 Python 脚本中的 PosBuilder 类构建，支持泳道图（verticalPool / verticalLane / horizontalSeparator）、普通流程图（process / decision / terminator / start / predefinedProcess / directData / storedData）、系统架构图（roundRectangle / text 组合）、RGB 颜色填充、L 形正交折线连线（linker），并自动计算锚点方向。当用户需要生成 ProcessOn 流程图、画流程图、画泳道图、画业务流程图、画系统架构图、画模块架构图、生成 .pos 文件、把图导入 ProcessOn，或希望用代码批量构建可编辑图表时使用此 skill。常见触发词：生成流程图、画流程图、画泳道图、画架构图、生成 .pos 文件、导入 ProcessOn、ProcessOn 流程图、PosBuilder。
+  Generate ProcessOn .pos files locally (flowcharts, swimlane diagrams, system architecture diagrams) using the bundled Python PosBuilder helper. Runs fully offline with no API key required. Supports swimlanes (verticalPool / verticalLane / horizontalSeparator), all standard flowchart shapes (process / decision / terminator / start / predefinedProcess / directData / storedData), architecture-style cards (roundRectangle / text), RGB color fills, and orthogonal L-shaped polyline connectors with automatic anchor selection. Use this skill when the user wants to generate a ProcessOn flowchart / swimlane / architecture diagram, produce a .pos file, or programmatically build diagrams that can be imported into ProcessOn. Trigger phrases include "create a ProcessOn flowchart", "generate a swimlane diagram", "draw a system architecture", "make a .pos file", "import to ProcessOn", "PosBuilder".
 ---
 
-# 生成 ProcessOn .pos 流程图
+# generate-pos-flowchart
+
+将用户意图、代码关系或草图转换为 ProcessOn 兼容的 `.pos` 文件。默认跟随用户当前语言输出提示、澄清问题、优化 Prompt 和最终结果。
+
+> **本技能完全本地运行，不调用任何在线服务，不需要 API Key。** 产物是 `.pos` JSON 文件，用户在 ProcessOn 编辑器中"导入文件"即可二次编辑。
+
+## 何时触发
+
+- **支持的图形类型**：流程图、业务流程图、泳道图（verticalPool）、流程地图、标准流程图、系统架构图、模块架构图、产品架构图。
+- **英文表达同样触发**：`create a flowchart`、`draw a flowchart`、`generate a flowchart`、`make a swimlane diagram`、`vertical swimlane`、`system architecture diagram`、`module architecture`、`generate a .pos file`、`import into ProcessOn`、`PosBuilder`。
+- **本技能不擅长 / 不支持**：时序图（sequence diagram）、ER 图、组织结构图、时间轴、信息图、金字塔图、思维导图。遇到这些请求时，应该明确告知用户本技能不覆盖，并建议使用 `processon-diagram-generator`（在线版）。
+- **模糊请求**：如果用户只说"画个图"之类的请求，**先确认图形类型**再动手。
+- **草图重绘**：如果用户上传图片要求"重绘"或"转成图"，先识别图片中的节点、文字和连接关系，列出结构化清单后再调用 `PosBuilder`。
+
+## 工作方式
+
+### 1. 先补关键信息
+
+不要在关系不清、流程断层或结构缺失时直接生成。
+
+信息不足时按这个顺序处理：
+
+1. 指出缺少什么（角色 / 节点列表 / 判断分支 / 数据流向）。
+2. 给出合理默认方案或行业常见做法供用户确认。
+3. 用户确认后再继续构建。
+
+### 2. 优化 Prompt，但不要改写用户语言
+
+在用户原始需求上补充专业约束（默认保持与用户一致的语言）：
+
+- **通用**：专业风格、布局清晰、颜色协调、避免线条交叉、节点对齐（同行 Y 一致 / 同列 X 一致）。
+- **流程图**：明确开始 / 结束节点（terminator 或 start），决策点用标准菱形（decision）并在两条分支上分别标注 `label="是" / "否"`。
+- **泳道图**：先确定泳道角色（≥ 2 个），再决定是否需要水平阶段分隔（horizontalSeparator）。所有节点必须设置 `container = pool_id`。
+- **架构图**：按层次组织（一级模块 → 子功能项），用 `roundRectangle` + `fill_color` 表达层级关系，标题条用深色 + 白字，子功能用无填充。
+
+### 3. 架构分析画关系，不画目录树
+
+当用户要求分析项目架构时，重点提取**模块边界、依赖关系、调用链路和数据流向**。优先阅读入口文件、路由、核心配置和关键模块，**不要把结果退化成文件夹树**。
+
+## 执行顺序
+
+1. **声明使用本技能**：在回复开头说明正在使用 `generate-pos-flowchart` 技能处理当前请求。
+2. **识别图形类型**：流程图 / 泳道图 / 系统架构图（不在这三类内的请求要明确告知不支持）。
+3. **构建优化后的 Prompt**：提取关键实体、动作、判断条件、泳道角色，按"工作方式"中的原则补全约束。
+4. **本地生成全流程：**
+   - **第一步：列出结构化节点清单。** 在调用脚本前，必须先在回复中以列表形式列出"节点 → 形状 → 坐标"和"连线（含 label）"的清单，让用户校对。
+   - **第二步：调用 `PosBuilder` 生成。** 用 `from scripts.generate_pos import PosBuilder` 引入，按节点 → 连线 → `build()` → `save()` 顺序写代码并执行。
+   - **第三步：立即运行 `--verify` 验证。** 执行 `python scripts/generate_pos.py --verify <output.pos>`，并把验证输出贴回回复中。
+   - **硬性闸门：** 只有节点清单、`.pos` 文件绝对路径、`--verify` 验证结论、ProcessOn 导入指引**全部**输出完毕后，才允许结束当前任务。
+5. **禁止使用富文本语法包装路径：** 文件路径必须以**纯文本**形式直接展示，**严禁使用 Markdown 链接语法 `[]()` 包装绝对路径**，避免不同终端渲染异常导致用户复制路径失败。
+6. **结果呈现：**
+   - 如果生成成功：最终回复**必须同时保留**节点清单、文件绝对路径、`--verify` 通过结论、导入操作指引。
+   - 如果 `--verify` 失败：**禁止交付不合法的 .pos 文件**，必须先修复（通常是节点 ID 缺失、parent / container 不一致、meta.version 错误），重新生成并重新校验。
+
+## 结果呈现
+
+关键结果必须在 assistant 正文里以纯文本形式可见。
+
+- **节点清单展示规范**：先以列表展示"节点 → 形状 → (x, y, w, h)"和"连线 → 锚点方向 → label"，再贴 Python 代码块。
+- **文件路径展示规范**：直接输出 `.pos` 文件的**绝对路径**纯文本，不要包装成 Markdown 链接。
+- **验证结果展示规范**：贴出 `--verify` 命令的标准输出，明确"验证通过"或具体错误信息。
+- **导入指引展示规范**：明确写出"打开 ProcessOn → 我的文件 → 导入文件 → 选择刚生成的 .pos"，让用户拿到文件后无需再问怎么用。
+- **失败处理**：`--verify` 不通过时，不要删除已生成的节点清单和代码（便于排错），但**必须**先修复后再交付，禁止把失败结果当成最终产物。
+
+## 输出前自检
+
+在发送任何最终回复前，必须逐项自检，**七项全部满足才允许发送**：
+
+1. ✅ assistant 正文里已经声明正在使用 `generate-pos-flowchart` 技能。
+2. ✅ assistant 正文里已经确认了图形类型（流程图 / 泳道图 / 架构图），且属于本技能支持范围。
+3. ✅ assistant 正文里已经完整贴出节点清单（节点 + 形状 + 坐标 + 连线 + label），不是摘要或省略版。
+4. ✅ **决策节点（decision）出线 ≥ 2 条，且每条连线都已经写明 `label`**：每个 `add_decision` 创建的节点必须至少有两条 `add_linker` 出线（典型场景为"是 / 否"、"通过 / 拒绝"、"成功 / 失败"），并且每条连线必须显式指定 `label="..."`，否则下游读不出走向，自检不通过。
+5. ✅ assistant 正文里已经包含 `.pos` 文件的**绝对路径**纯文本（不是 Markdown 链接）。
+6. ✅ assistant 正文里已经贴出 `--verify` 的执行输出，且结论为"验证通过"。
+7. ✅ assistant 正文里已经写出 ProcessOn 导入操作指引（"我的文件 → 导入文件 → 选择 .pos"）。
+
+只要以上任一项不满足，就不能结束当前回复。
+
+### 第 4 项失败的真实案例（务必避免）
+
+> **错误示范**：泳道图中创建了 `add_decision('风险评估', ...)`，但只写了一条 `add_linker(n3, n4, label='通过', ...)`，**遗漏了拒绝分支**。
+>
+> **后果**：图打开后看不到拒绝路径，业务方无法理解失败场景如何流转。
+>
+> **修复**：补一个终结节点（如 `add_terminator('拒绝并通知', ...)`），加上第二条 `add_linker(n3, rejected_node, label='拒绝', ...)`。两条出线方向**必须使用不同锚点**（典型组合：一条 `from_anchor=2`（左）、另一条 `from_anchor=1`（下）；或一条左、一条右；避免两条出线挤在同一边）。
+
+### 最终回复格式示例
+
+> 我正在使用 `generate-pos-flowchart` 技能处理你的请求。
+>
+> **图形类型**：普通流程图（用户登录注册流程）。
+>
+> **节点清单：**
+> - n1: 开始 → terminator @ (300, 50)
+> - n2: 输入账号密码 → process @ (280, 130, w=200)
+> - d1: 前端校验 → decision @ (290, 220)
+> - n3: 后端鉴权 → process @ (280, 320)
+> - n4: 数据库查询 → storedData @ (280, 410)
+> - n5: 颁发 Token → process @ (280, 500)
+> - n6: 结束 → terminator @ (300, 590)
+>
+> **连线：**
+> - n1 → n2（默认下→上）
+> - n2 → d1（默认下→上）
+> - d1 → n3（label="是"，默认下→上）
+> - d1 → n2（label="否"，左→上，回到输入步骤）
+> - n3 → n4 → n5 → n6（默认下→上）
+>
+> **生成代码：**
+> ```python
+> from scripts.generate_pos import PosBuilder
+> B = PosBuilder()
+> # ... 此处省略具体代码 ...
+> data = B.build("用户登录注册流程")
+> B.save(data, "/Users/xxx/login_flow.pos")
+> ```
+>
+> **文件路径：**
+> /Users/xxx/login_flow.pos
+>
+> **验证结果：**
+> ```
+> $ python scripts/generate_pos.py --verify /Users/xxx/login_flow.pos
+> ✅ 文件结构合法：meta.version=5.0，nodes=7，linkers=7
+> ```
+>
+> **如何在 ProcessOn 中打开：**
+> 打开 ProcessOn → 我的文件 → 导入文件 → 选择 `/Users/xxx/login_flow.pos`，导入后即可二次编辑。
 
 ## 快速开始
-
-使用 `scripts/generate_pos.py` 中的 `PosBuilder` 类生成 `.pos` 文件。
 
 ```bash
 python scripts/generate_pos.py
@@ -17,32 +144,14 @@ python scripts/generate_pos.py
 
 ```python
 from scripts.generate_pos import PosBuilder
+
 builder = PosBuilder()
 # 添加节点和连线...
 data = builder.build("我的流程图")
 builder.save(data, "output.pos")
 ```
 
-## 工作流程
-
-```
-Task Progress:
-- [ ] 1. 确认流程图类型（普通流程图 / 泳道图）
-- [ ] 2. 确认节点列表和连接关系
-- [ ] 3. 使用 PosBuilder 构建图表
-- [ ] 4. 生成 .pos 文件
-- [ ] 5. 验证文件结构
-```
-
-### 步骤1：确认图表类型
-
-**普通流程图？** → 直接添加节点和连线
-**泳道图？** → 先创建 verticalPool + verticalLane，再添加节点
-**系统架构图？** → 使用 roundRectangle + text 组合，通过颜色和层级表达结构
-
-### 步骤2：构建图表
-
-**普通流程图示例：**
+### 普通流程图示例
 
 ```python
 B = PosBuilder()
@@ -55,7 +164,7 @@ data = B.build("我的流程图")
 B.save(data, "output.pos")
 ```
 
-**泳道图示例：**
+### 泳道图示例
 
 ```python
 B = PosBuilder()
@@ -63,25 +172,36 @@ B = PosBuilder()
 # 创建泳道池（包含标题栏）
 pool_id = B.add_vertical_pool("业务流程图", x=50, y=50, w=800, h=2000)
 
-# 创建泳道（自动成为pool的children）
+# 创建泳道（自动成为 pool 的 children）
 lane1 = B.add_vertical_lane("客户", pool_id, x=50, y=90, w=200, h=1960)
 lane2 = B.add_vertical_lane("客户经理", pool_id, x=250, y=90, w=200, h=1960)
 lane3 = B.add_vertical_lane("审批人", pool_id, x=450, y=90, w=200, h=1960)
+
+# 可选：用 add_round_rectangle 给每条泳道列铺底色（zindex 调到 -2 沉到最底层，
+# 不遮挡节点和泳道线；宽度比泳道窄 2px 避免遮挡分隔线）
+bg1 = B.add_round_rectangle("", 52, 121, 196, 1928, fill_color="240,247,255")
+bg2 = B.add_round_rectangle("", 252, 121, 196, 1928, fill_color="245,255,245")
+bg3 = B.add_round_rectangle("", 452, 121, 196, 1928, fill_color="255,250,240")
+for bg in [bg1, bg2, bg3]:
+    B.elements[bg]["props"]["zindex"] = -2
 
 # 可选：添加水平分隔行（阶段分隔）
 sep1 = B.add_horizontal_separator("贷前阶段", pool_id, x=50, y=90, w=800, h=600)
 sep2 = B.add_horizontal_separator("贷后阶段", pool_id, x=50, y=690, w=800, h=600)
 
 # 在泳道内添加节点（container 指向 pool_id）
-n1 = B.add_start("申请", 100, 150, container=pool_id)
-n2 = B.add_process("审核", 300, 300, container=pool_id)
+# 流程节点也支持 fill_color / font_color 高亮关键步骤（如开始用绿色、决策用黄色、拒绝用红色）
+n1 = B.add_start("申请", 100, 150, container=pool_id,
+                 fill_color="149,218,105", font_color="255,255,255")
+n2 = B.add_process("审核", 300, 300, container=pool_id,
+                   fill_color="116,186,245", font_color="255,255,255")
 B.add_linker(n1, n2)
 
 data = B.build("泳道流程图")
 B.save(data, "output.pos")
 ```
 
-**系统架构图示例：**
+### 系统架构图示例
 
 ```python
 B = PosBuilder()
@@ -103,140 +223,27 @@ data = B.build("系统架构图")
 B.save(data, "output.pos")
 ```
 
-### 步骤3：验证
+## 命令行调用参考
 
 ```bash
+# 直接运行内置示例（生成默认 .pos 文件，用于自检脚本是否可用）
+python scripts/generate_pos.py
+
+# 验证 .pos 文件结构是否符合 ProcessOn schema 5.0
 python scripts/generate_pos.py --verify output.pos
 ```
 
-## 可用节点类型
+## 示例优化 Prompt
 
-### 流程图节点
+> **用户意图**：帮我画一个登录流程。
+> **优化后**：请生成一张普通流程图（非泳道），描述用户登录注册流程。包含节点：开始（terminator）→ 输入账号密码（process）→ 前端校验（decision，是 / 否）→ 后端鉴权（process）→ 数据库查询（storedData）→ Token 发放（process）→ 结束（terminator）。要求：决策两条分支分别标注"是 / 否"，节点 X 坐标对齐使主干为垂直直线，错误分支放在右侧；最终输出 `.pos` 文件并通过 `--verify` 校验。
 
-| 方法 | 形状 | name值 | 用途 |
-|------|------|--------|------|
-| `add_process()` | 矩形 | process | 普通处理步骤 |
-| `add_decision()` | 菱形 | decision | 判断/分支 |
-| `add_terminator()` | 圆角矩形 | terminator | 开始/结束（胶囊形） |
-| `add_start()` | 圆角矩形 | start | 开始/结束（同terminator） |
-| `add_predefined_process()` | 双边线矩形 | predefinedProcess | 子流程/预定义流程 |
-| `add_direct_data()` | 右侧弧形 | directData | 策略/数据源 |
-| `add_stored_data()` | 左侧弧形 | storedData | 存储数据 |
-
-### 通用节点（架构图/自由布局）
-
-| 方法 | 形状 | name值 | 用途 |
-|------|------|--------|------|
-| `add_round_rectangle()` | 圆角矩形 | roundRectangle | 模块/功能块（支持颜色填充） |
-| `add_text()` | 纯文本 | text | 标题/标签（无边框无填充） |
-
-## 可用泳道元素
-
-| 方法 | name值 | 用途 |
-|------|--------|------|
-| `add_vertical_pool()` | verticalPool | 泳道池（顶层容器） |
-| `add_vertical_lane()` | verticalLane | 垂直泳道 |
-| `add_horizontal_separator()` | horizontalSeparator | 水平阶段分隔 |
-
-## 连线
-
-```python
-# 基本连线（从下锚点到上锚点，适用于正下方的目标）
-B.add_linker(from_id, to_id)
-
-# 带文本标签
-B.add_linker(from_id, to_id, label="是")
-
-# 指定锚点方向：0=上, 1=下, 2=左, 3=右
-B.add_linker(from_id, to_id, label="否", from_anchor=3, to_anchor=2)
-
-# 双向箭头
-B.add_linker(from_id, to_id, begin_arrow="solidArrow")
-
-# 无箭头连线
-B.add_linker(from_id, to_id, end_arrow="none")
-```
-
-### 锚点选择规则（重要）
-
-根据**目标节点相对于源节点的实际位置**选择锚点，确保连线为美观的正交折线：
-
-**源锚点**：朝目标方向出发
-**目标锚点**：连线从哪个方向"进入"目标
-
-| 目标相对位置 | 源锚点 | 目标锚点 | 折线形状 |
-|-------------|--------|----------|----------|
-| 正下方 | 下(1) | 上(0) | 垂直直线 |
-| 正右方（同行） | 右(3) | 左(2) | 水平直线 |
-| 正左方（同行） | 左(2) | 右(3) | 水平直线 |
-| 正上方 | 上(0) | 下(1) | 垂直直线 |
-| **右下方** | 右(3) | **上(0)** | 先水平再垂直下（L形折线） |
-| **左下方** | 左(2) | **上(0)** | 先水平再垂直下（L形折线） |
-| **右上方** | 右(3) | **下(1)** | 先水平再垂直上（L形折线） |
-| **左上方** | 左(2) | **下(1)** | 先水平再垂直上（L形折线） |
-
-**关键原则**：
-- 目标不在源的正水平方向时，目标锚点用**垂直方向**（上/下），不要用左/右，否则会产生斜线
-- 同行节点（Y坐标相同或接近）使用水平连线：右(3)→左(2) 或 左(2)→右(3)
-- 同列节点（X坐标相同或接近）使用垂直连线：下(1)→上(0) 或 上(0)→下(1)
-- 节点尽量对齐（X或Y坐标一致），减少不必要的折线
-
-### 折线拐角点（自动计算）
-
-`add_linker` 会根据源/目标锚点的方向组合，自动计算正交折线的拐角点（points）：
-
-| 锚点组合 | 折线路径 | 拐角点 |
-|----------|----------|--------|
-| 水平→垂直（如右→上） | 先水平走，再垂直 | `(tx, fy)` — 1个拐角 |
-| 垂直→水平（如下→左） | 先垂直走，再水平 | `(fx, ty)` — 1个拐角 |
-| 水平→水平（如右→左） | 水平→垂直→水平 | 2个拐角，中间垂直段 |
-| 垂直→垂直（如下→上） | 垂直→水平→垂直 | 2个拐角，中间水平段 |
-
-## 颜色填充
-
-```python
-# roundRectangle 支持颜色填充
-B.add_round_rectangle("模块名", x, y, w, h,
-    fill_color="41,143,227",      # RGB字符串，如 "R,G,B"
-    font_color="255,255,255")     # 白色文字
-
-# 无填充（默认）
-B.add_round_rectangle("子项", x, y, w, h)  # 无色背景，黑色文字
-```
-
-常用颜色参考：
-
-| 颜色 | RGB值 | 用途 |
-|------|-------|------|
-| 深蓝 | `41,143,227` | 标题条 |
-| 浅蓝 | `116,186,245` | 模块背景 |
-| 藏蓝 | `33,113,180` | 侧边栏标签 |
-| 绿色 | `149,218,105` | 客户管理类 |
-| 橙色 | `241,152,34` | 角色管理类 |
-| 青色 | `44,198,222` | 消息/日志类 |
-| 深青 | `35,172,193` | 审计/模板类 |
-| 红色 | `236,114,112` | 线索管理类 |
-| 粉色 | `232,85,164` | 首页/贷款类 |
-| 黄色 | `224,196,49` | 授权类 |
-| 深绿 | `17,130,107` | 系统设置类 |
-| 紫色 | `100,84,133` | 主系统 |
-
-## 关键规则
-
-1. **文件格式**：单行JSON，`separators=(',', ':')`，`ensure_ascii=False`
-2. **meta.type** 必须为 `"ProcessOn Schema File"`，**meta.version** 必须为 `"5.0"`
-3. **泳道层级**：verticalPool → children 包含 verticalLane ID 列表；verticalLane.parent = pool.id
-4. **节点放置在泳道内**：设置 `container = pool_id`（指向 verticalPool 的 ID）
-5. **fontStyle.size**：节点默认 `16`，泳道池标题 `20`，水平分隔 `20`，架构图大标题 `35`
-6. **zindex**：泳道元素用 `-1`，节点从 `1` 递增
-7. **锚点角度**：上=`1.5708`(π/2)，下=`4.7124`(3π/2)，左=`0`，右=`3.1416`(π)
-8. **roundRectangle**：`lineStyle.lineWidth=0`（无边框），`resizeDir=["tl","tr","br","bl"]`（仅四角）
-9. **text**：路径中 `lineWidth=0` + `fillStyle.type="none"`，`textBlock.position` 用 `{"w":"w","h":"h","x":0,"y":0}`
-10. **连线锚点**：根据目标相对位置选择锚点方向，正方向用对应锚点，斜方向时目标锚点用垂直方向（上/下），避免产生斜线
-11. **折线拐角**：`add_linker` 自动根据锚点组合计算正交折线拐角点（points），水平→垂直组合产生1个拐角，同方向组合产生2个拐角
-12. **节点对齐**：同行水平连线的节点Y坐标应一致，同列垂直连线的节点X坐标应一致（如开始节点与后续节点居中对齐），减少不必要折线
+> **User intent**: Draw a user login flow.
+> **Optimized prompt**: Generate a standard flowchart (not swimlane) for the user login flow. Nodes: Start (terminator) → Input credentials (process) → Frontend validation (decision, yes / no) → Backend auth (process) → DB lookup (storedData) → Issue token (process) → End (terminator). Requirements: label both decision branches with "yes / no", align main-trunk nodes on the same X axis so the happy path is a straight vertical line, place the failure branch on the right, and finally produce a `.pos` file that passes `--verify`.
 
 ## 详细参考
 
-- 完整 .pos 格式规范：[pos-format-spec.md](pos-format-spec.md)
-- Python 生成脚本：[scripts/generate_pos.py](scripts/generate_pos.py)
+技术细节（节点类型、泳道元素、连线锚点、折线拐角、颜色填充、schema 关键规则）全部沉淀在以下文件中，**调用 `PosBuilder` 之前必须先翻阅**：
+
+- 完整 .pos 格式规范、节点表、锚点规则、颜色表：[pos-format-spec.md](pos-format-spec.md)
+- Python 生成脚本（含全部 `add_*` 方法签名）：[scripts/generate_pos.py](scripts/generate_pos.py)

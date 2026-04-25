@@ -256,15 +256,30 @@ class PosBuilder:
 
     def _add_shape(self, name, text, x, y, w, h, path, anchors, attribute,
                    category="flow", title="", font_style=None, text_position=None,
-                   resize_dir=None, container=None, parent=None):
-        """通用形状节点创建方法"""
+                   resize_dir=None, container=None, parent=None,
+                   fill_color=None, font_color=None):
+        """通用形状节点创建方法
+
+        新增参数：
+        fill_color: RGB 字符串如 "41,143,227"，None 表示无填充（保持默认透明）
+        font_color: RGB 字符串如 "255,255,255"，None 表示默认黑色字体
+        """
         nid = gen_id()
         if font_style is None:
             font_style = {"size": 16}
+        else:
+            font_style = dict(font_style)
         if text_position is None:
             text_position = {"w": "w-20", "x": 10, "h": "h", "y": 0}
         if resize_dir is None:
             resize_dir = RESIZE_ALL
+
+        if font_color:
+            font_style["color"] = font_color
+
+        fill_style = {}
+        if fill_color:
+            fill_style = {"color": fill_color, "type": "solid"}
 
         el = {
             "link": "",
@@ -280,7 +295,7 @@ class PosBuilder:
             "children": [],
             "resizeDir": resize_dir,
             "name": name,
-            "fillStyle": {},
+            "fillStyle": fill_style,
             "theme": {},
             "id": nid,
             "attribute": attribute,
@@ -299,52 +314,66 @@ class PosBuilder:
         self.elements[nid] = el
         return nid
 
-    def add_process(self, text, x, y, w=200, h=70, container=None):
-        """矩形处理节点"""
+    def add_process(self, text, x, y, w=200, h=70, container=None,
+                    fill_color=None, font_color=None):
+        """矩形处理节点。fill_color/font_color 为 RGB 字符串，如 "41,143,227"。"""
         return self._add_shape("process", text, x, y, w, h,
                                PATH_PROCESS, ANCHORS_4DIR, ATTR_LINKABLE,
-                               title="流程", container=container)
+                               title="流程", container=container,
+                               fill_color=fill_color, font_color=font_color)
 
-    def add_decision(self, text, x, y, w=120, h=70, container=None):
-        """菱形判断节点"""
+    def add_decision(self, text, x, y, w=120, h=70, container=None,
+                     fill_color=None, font_color=None):
+        """菱形判断节点。fill_color/font_color 为 RGB 字符串。"""
         return self._add_shape("decision", text, x, y, w, h,
                                PATH_DECISION, ANCHORS_4DIR, ATTR_LINKABLE,
-                               title="判断", container=container)
+                               title="判断", container=container,
+                               fill_color=fill_color, font_color=font_color)
 
-    def add_terminator(self, text, x, y, w=120, h=50, container=None):
-        """圆角胶囊形（开始/结束）"""
+    def add_terminator(self, text, x, y, w=120, h=50, container=None,
+                       fill_color=None, font_color=None):
+        """圆角胶囊形（开始/结束）。fill_color/font_color 为 RGB 字符串。"""
         return self._add_shape("terminator", text, x, y, w, h,
                                PATH_TERMINATOR, ANCHORS_4DIR, ATTR_LINKABLE,
-                               title="开始/结束", container=container)
+                               title="开始/结束", container=container,
+                               fill_color=fill_color, font_color=font_color)
 
-    def add_start(self, text, x, y, w=120, h=50, container=None):
-        """开始/结束节点（与terminator形状相同，name不同）"""
+    def add_start(self, text, x, y, w=120, h=50, container=None,
+                  fill_color=None, font_color=None):
+        """开始/结束节点（与terminator形状相同，name不同）。"""
         return self._add_shape("start", text, x, y, w, h,
                                PATH_TERMINATOR, ANCHORS_4DIR, ATTR_LINKABLE,
-                               category="basic", title="开始/结束", container=container)
+                               category="basic", title="开始/结束", container=container,
+                               fill_color=fill_color, font_color=font_color)
 
-    def add_predefined_process(self, text, x, y, w=160, h=70, container=None):
-        """双边线矩形（子流程/预定义流程）"""
+    def add_predefined_process(self, text, x, y, w=160, h=70, container=None,
+                               fill_color=None, font_color=None):
+        """双边线矩形（子流程/预定义流程）。"""
         return self._add_shape("predefinedProcess", text, x, y, w, h,
                                PATH_PREDEFINED_PROCESS, ANCHORS_4DIR, ATTR_LINKABLE,
                                title="子流程",
                                text_position={"w": "w-Math.min(w/6,20)*2", "x": "Math.min(w/6,20)", "h": "h", "y": "0"},
-                               container=container)
+                               container=container,
+                               fill_color=fill_color, font_color=font_color)
 
-    def add_direct_data(self, text, x, y, w=150, h=50, container=None):
-        """右侧弧形（策略/直接数据）"""
+    def add_direct_data(self, text, x, y, w=150, h=50, container=None,
+                        fill_color=None, font_color=None):
+        """右侧弧形（策略/直接数据）。"""
         return self._add_shape("directData", text, x, y, w, h,
                                PATH_DIRECT_DATA, ANCHORS_4DIR, ATTR_LINKABLE,
                                title="直接数据",
                                font_style={"size": 16, "textAlign": "center", "vAlign": "middle"},
                                text_position={"w": "w-Math.min(w,h)/6*2", "x": "Math.min(w,h)/6", "h": "h", "y": "0"},
-                               container=container)
+                               container=container,
+                               fill_color=fill_color, font_color=font_color)
 
-    def add_stored_data(self, text, x, y, w=140, h=70, container=None):
-        """左侧弧形（存储数据）"""
+    def add_stored_data(self, text, x, y, w=140, h=70, container=None,
+                        fill_color=None, font_color=None):
+        """左侧弧形（存储数据）。"""
         return self._add_shape("storedData", text, x, y, w, h,
                                PATH_STORED_DATA, ANCHORS_STORED_DATA, ATTR_LINKABLE,
-                               title="存储数据", container=container)
+                               title="存储数据", container=container,
+                               fill_color=fill_color, font_color=font_color)
 
     # ==================== 通用图形节点（架构图） ====================
 
